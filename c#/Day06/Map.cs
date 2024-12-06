@@ -7,8 +7,6 @@ public class Map
 {
     private readonly Tile[,] _tiles;
     private readonly (int X, int Y) _guardOrigin;
-    private (int X, int Y, Direction Facing) _guard = (0, 0, Direction.North);
-    private Dictionary<int, List<Direction>> _hitObstacle = new Dictionary<int, List<Direction>>();
 
     public int Width => _tiles.GetLength(0);
 
@@ -36,8 +34,8 @@ public class Map
                         break;
                     case '^':
                         _tiles[x, y] = Tile.Path;
-                        _guardOrigin.X = _guard.X = x;
-                        _guardOrigin.Y = _guard.Y = y;
+                        _guardOrigin.X = x;
+                        _guardOrigin.Y = y;
                         break;
                     default:
                         throw new NotImplementedException();
@@ -48,19 +46,11 @@ public class Map
 
     public void PlaceObstacle((int X, int Y) coords)
     {
-        if (coords.X == _guard.X && coords.Y == _guard.Y) return;
-
         _tiles[coords.X, coords.Y] = Tile.TemporaryObstacle;
     }
 
     public void Reset()
     {
-        _guard.X = _guardOrigin.X;
-        _guard.Y = _guardOrigin.Y;
-        _guard.Facing = Direction.North;
-        
-        _hitObstacle = new Dictionary<int, List<Direction>>();
-
         for (var y = 0; y < _tiles.GetLength(1); y++)
         {
             for (var x = 0; x < _tiles.GetLength(0); x++)
@@ -126,18 +116,15 @@ public class Map
         
         var path = new List<(int X, int Y)>
         {
-            (_guard.X, _guard.Y)
+            (_guardOrigin.X, _guardOrigin.Y)
         };
 
-        (int X, int Y, Direction Facing) pointer = (_guard.X, _guard.Y, _guard.Facing);
+        var hits = new Dictionary<int, List<Direction>>();
+        (int X, int Y, Direction Facing) pointer = (_guardOrigin.X, _guardOrigin.Y, Direction.North);
 
         while (!looping)
         {
-            var move = MovePointer(ref pointer, out looping);
-
-            _guard.X = pointer.X;
-            _guard.Y = pointer.Y;
-            _guard.Facing = pointer.Facing;
+            var move = MovePointer(hits, ref pointer, out looping);
 
             if (move == Tile.Bounds)
             {
@@ -151,7 +138,7 @@ public class Map
         return path;
     }
 
-    private Tile MovePointer(ref (int X, int Y, Direction Facing) pointer, out bool looping)
+    private Tile MovePointer(Dictionary<int, List<Direction>> hits, ref (int X, int Y, Direction Facing) pointer, out bool looping)
     {
         looping = false;
 
@@ -160,7 +147,7 @@ public class Map
         {
             var coordIndex = pointer.Y * Width + pointer.X;
 
-            if (_hitObstacle.TryGetValue(coordIndex, out var list))
+            if (hits.TryGetValue(coordIndex, out var list))
             {
                 if (list.Contains(pointer.Facing))
                 {
@@ -171,11 +158,11 @@ public class Map
             }
             else 
             {
-                _hitObstacle.Add(coordIndex, new List<Direction> { pointer.Facing });
+                hits.Add(coordIndex, new List<Direction> { pointer.Facing });
             }
 
             pointer.Facing = Turn(pointer.Facing);
-            return MovePointer(ref pointer, out looping);
+            return MovePointer(hits, ref pointer, out looping);
         }
         else 
         {
